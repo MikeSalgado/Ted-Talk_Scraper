@@ -78,19 +78,19 @@ def elementHasClass(element, active):
 def every_downloads_chrome(driver):
     if not driver.current_url.startswith("chrome://downloads"):
         driver.get("chrome://downloads/")
-    # return driver.execute_script("""
-    #     var items = document.querySelector('downloads-manager')
-    #         .shadowRoot.getElementById('downloadsList').items;
-    #     if (items.length === 0) return null;
-    #     if (items.every(e => e.state === "COMPLETE"))
-    #         return items.map(e => e.fileUrl || e.file_url);
-    #     """)
     return driver.execute_script("""
         var items = document.querySelector('downloads-manager')
             .shadowRoot.getElementById('downloadsList').items;
+        if (items.length === 0) return null;
         if (items.every(e => e.state === "COMPLETE"))
             return items.map(e => e.fileUrl || e.file_url);
         """)
+    # return driver.execute_script("""
+    #     var items = document.querySelector('downloads-manager')
+    #         .shadowRoot.getElementById('downloadsList').items;
+    #     if (items.every(e => e.state === "COMPLETE"))
+    #         return items.map(e => e.fileUrl || e.file_url);
+    #     """)
 
 
 def extract_process(url):
@@ -210,7 +210,8 @@ def extract_video(driver):
 
 
 if __name__== '__main__':
-    urls = grab_ted_talk_urls(num_pages=50)
+    # Sorts include popular, newest, oldest, and relevance
+    urls = grab_ted_talk_urls(num_pages=50, sort="newest")
     print(f"URLs to scrape ({len(urls)}):", urls)
     for url in urls:
         try:
@@ -223,3 +224,4 @@ if __name__== '__main__':
                     print(f"Already scraped this url ({url}), skipping to next")
         except:
             print("Error scraping ", url)
+    print("Finished with list of URLs")
