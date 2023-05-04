@@ -34,7 +34,7 @@ We included our trained model named model_prototype.ckpt that we trained in an U
 This model was not possible to run on windows and required a lot of setup to load in an Ubuntu environment so we decided to use SpeechRecognition to submit as our model prototype (https://github.com/Uberi/speech_recognition) since we can actually set up a working demo.
 
 # Training Data
-The transcripts and audio data could be found here: https://msoe.app.box.com/s/e4tre8q5m7c43ljpfwviklvywvtneqj9
+The transcripts and wav audio data could be found here: https://msoe.app.box.com/s/e4tre8q5m7c43ljpfwviklvywvtneqj9
 - Folders in the audio directory are separated by Ted Talks.
 - There is a train.csv and test.csv file in this github repository that has the example of what the transcribed text is for each audio segment. 
    - All the transcripts could be found here: https://msoe.app.box.com/s/0dkiyworh3bydjx39hki626wglhbfxvg
