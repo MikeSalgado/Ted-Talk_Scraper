@@ -27,7 +27,7 @@ function global:deactivate ([switch]$NonDestructive) {
 
 deactivate -nondestructive
 
-$env:VIRTUAL_ENV="C:\Users\dangn\Documents\Ted-Talk_Scraper\SpeechToTextVenv"
+$env:VIRTUAL_ENV="C:\Users\dangn\Documents\Senior Year\CS 4980 NLP\Ted-Talk_Scraper\SpeechToTextVenv"
 
 if (! $env:VIRTUAL_ENV_DISABLE_PROMPT) {
     # Set the prompt to include the env name
