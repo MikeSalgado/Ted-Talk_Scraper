@@ -16,6 +16,15 @@ from threading import Event
 #import torch.nn as nn
 #from torch.nn import functional as F
 
+# Nick - For my own reference
+#Documents\NLPvenv\Scripts\activate
+#python Documents\mltu\Tutorials\05_sound_to_text\myEngine.py --model_file Models\05_sound_to_text\202305031703
+
+#Documents\NLPvenv\Scripts\activate
+#python Documents\mltu\Tutorials\05_sound_to_text\inferenceModel.py
+
+
+
 from tensorflow import keras
 
 import torch.nn as nn
@@ -40,8 +49,8 @@ class LogMelSpec(nn.Module):
         return x
 
 
-def get_featurizer(sample_rate, n_feats=81):
-    return LogMelSpec(sample_rate=sample_rate, n_mels=n_feats,  win_length=160, hop_length=80)
+def get_featurizer(sample_rate, n_feats=1392): # n_feats=81
+    return LogMelSpec(sample_rate=sample_rate, n_mels=n_feats,  win_length=160, hop_length=26) # win_length=160, hop_length=80
 
 
 
@@ -76,15 +85,47 @@ class WavToTextModel(OnnxInferenceModel):
     def __init__(self, char_list: typing.Union[str, list], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.char_list = char_list
+        self.listener = Listener(sample_rate=8000)
+        self.featurizer = get_featurizer(8000)
+        
 
-    def predict(self, data: np.ndarray):
-        data_pred = np.expand_dims(data, axis=0)
+    def predict(self, audio):
+        with torch.no_grad():
+            fname = self.save(audio)
+            waveform, _ = torchaudio.load(fname)  # don't normalize on train
+            
+            input_featurizer = self.featurizer(waveform).numpy()
+            input_featurizer = np.delete(input_featurizer, [-4, -3,-2,-1], axis=2)
+            #print("featurizer", type(input_featurizer), input_featurizer.shape)
+            log_mel = self.featurizer(waveform).unsqueeze(1)
+            #print("log_mel", type(log_mel), log_mel.shape)
+            data_pred = np.expand_dims(log_mel, axis=0)
+            #print("data_pred", type(data_pred), data_pred.shape)
 
-        preds = self.model.run(None, {self.input_name: data_pred})[0]
+            #preds = self.model.run(None, {self.input_name: data_pred})[0]
+            preds = self.model.run(None, {self.input_name: input_featurizer})[0]
 
-        text = ctc_decoder(preds, self.char_list)[0]
-
+            text = ctc_decoder(preds, self.char_list)[0]
+        #print("MODEL PREDICTION", text)
         return text
+        
+    # FROM ENGINE.py
+    def save(self, waveforms, fname="audio_temp"):
+        wf = wave.open(fname, "wb")
+        # set the channels
+        wf.setnchannels(1)
+        # set the sample format
+        wf.setsampwidth(self.listener.p.get_sample_size(pyaudio.paInt16))
+        # set the sample rate
+        wf.setframerate(8000)
+        # write the frames as bytes
+        wf.writeframes(b"".join(waveforms))
+        # close the file
+        wf.close()
+        return fname
+
+        
+    
         
 class SpeechRecognitionEngine:
 
@@ -139,33 +180,7 @@ class SpeechRecognitionEngine:
         self.start = False
         """
 
-    def save(self, waveforms, fname="audio_temp"):
-        wf = wave.open(fname, "wb")
-        # set the channels
-        wf.setnchannels(1)
-        # set the sample format
-        wf.setsampwidth(self.listener.p.get_sample_size(pyaudio.paInt16))
-        # set the sample rate
-        wf.setframerate(8000)
-        # write the frames as bytes
-        wf.writeframes(b"".join(waveforms))
-        # close the file
-        wf.close()
-        return fname
-
-    def predict(self, audio):
-        with torch.no_grad():
-            fname = self.save(audio)
-            waveform, _ = torchaudio.load(fname)  # don't normalize on train
-            log_mel = self.featurizer(waveform).unsqueeze(1)
-            
-            data_pred = np.expand_dims(log_mel, axis=0)
-
-            preds = self.model.run(None, {self.input_name: data_pred})[0]
-
-            text = ctc_decoder(preds, self.char_list)[0]
-
-        return text
+    
     """
     def predict(self, audio):
         with torch.no_grad():
@@ -187,15 +202,18 @@ class SpeechRecognitionEngine:
 
     def inference_loop(self, action):
         while True:
-            print("INFERENCE LOOP")
+            #print("INFERENCE LOOP")
             if len(self.audio_q) < 5:
                 continue
             else:
                 pred_q = self.audio_q.copy()
                 self.audio_q.clear()
-                action(self.predict(pred_q))
-                results, context_length = self.predict(pred_q)
-                print("PREDICTION", results, context_length)
+                action(self.model.predict(pred_q))
+                #results, context_length = self.predict(pred_q)
+                results = self.model.predict(pred_q)
+                print("\n\nPrediction")
+                print("-"*30)
+                print(results)
             time.sleep(0.05)
 
     def run(self, action):
@@ -212,12 +230,13 @@ class DemoAction:
         self.current_beam = ""
 
     def __call__(self, x):
-        results, current_context_length = x
+        #results, current_context_length = x
+        results = x
         self.current_beam = results
         trascript = " ".join(self.asr_results.split() + results.split())
-        print(trascript)
-        if current_context_length > 10:
-            self.asr_results = trascript
+        #print(trascript)
+        #if current_context_length > 10:
+        #    self.asr_results = trascript
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="demoing the speech recognition engine in terminal.")
