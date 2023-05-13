@@ -2,6 +2,13 @@ import tensorflow as tf
 try: [tf.config.experimental.set_memory_growth(gpu, True) for gpu in tf.config.experimental.list_physical_devices('GPU')]
 except: pass
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+print("GPUS", gpus)
+#tf.config.set_visible_devices([], 'CPU') # hide the CPU
+tf.config.set_visible_devices(gpus[0], 'GPU') # unhide potentially hidden GPU
+tf.config.get_visible_devices()
+#tf.debugging.set_log_device_placement(True)
+
 import os
 import tarfile
 import pandas as pd
@@ -21,6 +28,14 @@ from mltu.tensorflow.metrics import CERMetric, WERMetric
 from model import train_model
 from configs import ModelConfigs
 
+# NICK - resume checkpoint training
+def load_ckp(checkpoint_fpath, model, optimizer):
+    checkpoint = torch.load(checkpoint_fpath)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    return model, optimizer, checkpoint['epoch']    
+#model, optimizer, checkpoint['epoch'] = load_ckp(checkpoint_fpath, model, optimizer)
+
 def download_and_unzip(url, extract_to='Datasets', chunk_size=1024*1024):
     http_response = urlopen(url)
 
@@ -35,6 +50,7 @@ def download_and_unzip(url, extract_to='Datasets', chunk_size=1024*1024):
 
 dataset_path = os.path.join('Datasets', 'LJSpeech-1.1')
 if not os.path.exists(dataset_path):
+    print("Downloading dataset...")
     download_and_unzip('https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2', extract_to='Datasets')
 
 dataset_path = "Datasets/LJSpeech-1.1"
@@ -53,6 +69,7 @@ dataset = [[f"Datasets/LJSpeech-1.1/wavs/{file}.wav", label.lower()] for file, l
 configs = ModelConfigs()
 
 max_text_length, max_spectrogram_length = 0, 0
+print("Loading dataset to train...")
 for file_path, label in tqdm(dataset):
     spectrogram = WavReader.get_spectrogram(file_path, frame_length=configs.frame_length, frame_step=configs.frame_step, fft_length=configs.fft_length)
     valid_label = [c for c in label if c in configs.vocab]
@@ -103,7 +120,14 @@ model.summary(line_length=110)
 
 # Define callbacks
 earlystopper = EarlyStopping(monitor='val_CER', patience=20, verbose=1, mode='min')
-checkpoint = ModelCheckpoint(f"{configs.model_path}/model.h5", monitor='val_CER', verbose=1, save_best_only=True, mode='min')
+
+#checkpoint = ModelCheckpoint(f"{configs.model_path}/model.h5", monitor='val_CER', verbose=1, save_best_only=True, mode='min')
+# NICK - trying this out to save each model epoch
+fname = os.path.sep.join([args["weights"],
+	"weights-{epoch:03d}-{val_loss:.4f}.hdf5"])
+checkpoint = ModelCheckpoint(fname, monitor="val_CER", mode="min",
+	save_best_only=True, verbose=1)
+
 trainLogger = TrainLogger(configs.model_path)
 tb_callback = TensorBoard(f'{configs.model_path}/logs', update_freq=1)
 reduceLROnPlat = ReduceLROnPlateau(monitor='val_CER', factor=0.8, min_delta=1e-10, patience=5, verbose=1, mode='auto')

@@ -23,7 +23,8 @@ from threading import Event
 #Documents\NLPvenv\Scripts\activate
 #python Documents\mltu\Tutorials\05_sound_to_text\inferenceModel.py
 
-
+# 5120
+#Documents\NLPvenv\Scripts\activate && python Documents\mltu\Tutorials\05_sound_to_text\myEngine.py --model_file Models\latest_model
 
 from tensorflow import keras
 
@@ -48,7 +49,7 @@ class LogMelSpec(nn.Module):
         x = np.log(x + 1e-14)  # logrithmic, add small value to avoid inf
         return x
 
-
+# EXPECT 1392, 193
 def get_featurizer(sample_rate, n_feats=1392): # n_feats=81
     return LogMelSpec(sample_rate=sample_rate, n_mels=n_feats,  win_length=160, hop_length=26) # win_length=160, hop_length=80
 
@@ -57,7 +58,7 @@ def get_featurizer(sample_rate, n_feats=1392): # n_feats=81
 class Listener:
 
     def __init__(self, sample_rate=8000, record_seconds=2):
-        self.chunk = 1024
+        self.chunk = 2048
         self.sample_rate = sample_rate
         self.record_seconds = record_seconds
         self.p = pyaudio.PyAudio()
@@ -88,29 +89,35 @@ class WavToTextModel(OnnxInferenceModel):
         self.listener = Listener(sample_rate=8000)
         self.featurizer = get_featurizer(8000)
         
+        self.root_dirname = os.path.dirname(os.path.abspath(__file__))
+        
 
     def predict(self, audio):
         with torch.no_grad():
             fname = self.save(audio)
-            waveform, _ = torchaudio.load(fname)  # don't normalize on train
+            #waveform, _ = torchaudio.load(fname)  # don't normalize on train
+            #print("Waveform shape", waveform.shape)
+            #input_featurizer = self.featurizer(waveform).numpy()
+            #input_featurizer = np.delete(input_featurizer, [-4, -3,-2,-1], axis=2)
+            #log_mel = self.featurizer(waveform).unsqueeze(1)
+            #data_pred = np.expand_dims(log_mel, axis=0)
+            #preds = self.model.run(None, {self.input_name: input_featurizer})[0]
+            #text = ctc_decoder(preds, self.char_list)[0]
             
-            input_featurizer = self.featurizer(waveform).numpy()
-            input_featurizer = np.delete(input_featurizer, [-4, -3,-2,-1], axis=2)
-            #print("featurizer", type(input_featurizer), input_featurizer.shape)
-            log_mel = self.featurizer(waveform).unsqueeze(1)
-            #print("log_mel", type(log_mel), log_mel.shape)
-            data_pred = np.expand_dims(log_mel, axis=0)
-            #print("data_pred", type(data_pred), data_pred.shape)
-
-            #preds = self.model.run(None, {self.input_name: data_pred})[0]
-            preds = self.model.run(None, {self.input_name: input_featurizer})[0]
-
+            spectrogram = WavReader.get_spectrogram(fname, frame_length=256, frame_step=160, fft_length=384)
+            print("Spectrogram", type(spectrogram), spectrogram.shape)
+            padded_spectrogram = np.pad(spectrogram, ((1392 - spectrogram.shape[0], 0),(0,0)), mode='constant', constant_values=0)
+            print("padded_spectrogram", type(padded_spectrogram), padded_spectrogram.shape)
+            data_pred = np.expand_dims(padded_spectrogram, axis=0)
+            preds = self.model.run(None, {self.input_name: data_pred})[0]
             text = ctc_decoder(preds, self.char_list)[0]
-        #print("MODEL PREDICTION", text)
+            
+            
         return text
         
     # FROM ENGINE.py
-    def save(self, waveforms, fname="audio_temp"):
+    def save(self, waveforms, fname="audio_temp.wav"):
+        fname = os.path.join(self.root_dirname, fname)
         wf = wave.open(fname, "wb")
         # set the channels
         wf.setnchannels(1)
@@ -209,10 +216,8 @@ class SpeechRecognitionEngine:
                 pred_q = self.audio_q.copy()
                 self.audio_q.clear()
                 action(self.model.predict(pred_q))
-                #results, context_length = self.predict(pred_q)
                 results = self.model.predict(pred_q)
-                print("\n\nPrediction")
-                print("-"*30)
+                print("Prediction\n\n", "-"*30)
                 print(results)
             time.sleep(0.05)
 

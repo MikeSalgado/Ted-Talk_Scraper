@@ -6,7 +6,7 @@ from mltu.configs import BaseModelConfigs
 class ModelConfigs(BaseModelConfigs):
     def __init__(self):
         super().__init__()
-        #self.model_path = os.path.join('Models/05_sound_to_text', datetime.strftime(datetime.now(), "%Y%m%d%H%M"))
+        self.model_path = os.path.join('Models/', 'latest_model')
         self.frame_length = 256 
         self.frame_step = 160
         self.fft_length = 384
@@ -18,5 +18,5 @@ class ModelConfigs(BaseModelConfigs):
 
         self.batch_size = 64#8
         self.learning_rate = 0.0005
-        self.train_epochs = 10#1000
+        self.train_epochs = 100#1000
         self.train_workers = 12#20
